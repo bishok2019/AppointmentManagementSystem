@@ -4,9 +4,9 @@ from rest_framework.generics import ListAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .permissions import IsAdmin, IsAdminOrManager, IsAdminOrManagerOrOwner, IsManager,IsOwner, IsStaff, IsAllowedUserType
+from .permissions import IsAdmin, IsAdminOrManager, IsAdminOrManagerOrHost, IsManager, IsHost, IsStaff, IsAllowedUserType
 from visitor_app.models import Visitor
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import User
 # Create your views here.
 
@@ -61,9 +61,9 @@ class UserLoginView(APIView):
             'status': 'error',
             'message': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
-    
+
 class RescheduleVisitor(APIView):
-    permission_classes = [IsAuthenticated,IsOwner]
+    permission_classes = [IsHost]
     serializer_class = RescheduleSerializer
 
     def get(self, request,pk=None):
@@ -74,7 +74,7 @@ class RescheduleVisitor(APIView):
                 serializer = RescheduleSerializer(visitors, many=True)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             return Response({"msg": "Appointment not found."}, status=status.HTTP_404_NOT_FOUND)
-        
+
         visitor = Visitor.objects.filter(visiting_to=host)
         if visitor.exists():
             serializer = VisitorInfoSerializer(visitor, many=True)
@@ -91,7 +91,7 @@ class RescheduleVisitor(APIView):
             serializer.save()
             return Response({'msg': 'Appointment successfully rescheduled!'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
     # def delete(self, request, pk=None, format=None):
     #     host = request.user
     #     visitor = Visitor.objects.filter(pk=pk,visiting_to=host)
@@ -128,8 +128,8 @@ class UpdateUserView(APIView):
     #         serializer.save()
     #         return Response({'msg': 'User successfully updated!'}, status=status.HTTP_200_OK)
     #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     def patch(self, request, pk=None, format=None):
-        # Fetch the user to be updated
         user_to_update = User.objects.filter(pk=pk).first()
         if not user_to_update:
             return Response({"msg": "User not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -139,7 +139,6 @@ class UpdateUserView(APIView):
 
         # Admin can update Manager and Staff
         if logged_in_user.user_type == 'ADMIN':
-            # Allow the update
             pass
 
         # Manager can only update Staff
@@ -149,15 +148,13 @@ class UpdateUserView(APIView):
                     {"msg": "Managers are not allowed to update Admins."},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            if 'user_type' in request.data and request.data['user_type'] == 'ADMIN':
-                return Response({"msg":"Managers are not alllowed to promote User to Admin"})
+            if 'user_type' in request.data and 'user_type' in request.data == 'ADMIN' or 'MANAGER':
+            # if 'user_type' in request.data and request.data['user_type'] == 'ADMIN' or 'MANAGER':
+                return Response({"msg":"Only Admin can perform this action."})
 
-        # Other roles (e.g., Staff) cannot update any user
+        # Other roles or STaff cannot update any user
         else:
-            return Response(
-                {"msg": "You do not have permission to update users."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({"msg": "You do not have permission to update users."}, status=status.HTTP_403_FORBIDDEN)
 
         # Perform the update
         serializer = UserUpdateSerializer(user_to_update, data=request.data, partial=True)

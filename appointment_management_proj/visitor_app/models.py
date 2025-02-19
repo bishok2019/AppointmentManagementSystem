@@ -17,7 +17,7 @@ class Visitor(models.Model):
         ('cancelled', 'Cancelled'),
     ]
     name = models.CharField(max_length=150)
-    phone_num = models.CharField(max_length=15,null=True, blank=True)
+    phone_num = models.CharField(max_length=15,null=True, blank=True, unique=True)
     email = models.EmailField(null=True, blank=True)
     photo = models.ImageField(upload_to='visitor_photos/',null=True, blank=True)
     company = models.CharField(max_length=150)
